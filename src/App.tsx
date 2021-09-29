@@ -4,13 +4,20 @@ import axios from 'axios';
 
 const walletRe = /^0x[a-fA-F0-9]{40}$/;
 
+interface AccountData {
+  id: string; //uuid
+  address: string;
+  nonce: string;
+  issued: string; //timestamp
+}
+
 const App = () => {
   // State / Props
   const [walletAddress, setWalletAddress] = useState<string | undefined>();
   const [message, setMessage] = useState('');
-  const [output1, setOutput1] = useState('');
-  const [output2, setOutput2] = useState<{ [key: string]: any }>({});
-  const [output3, setOutput3] = useState<any>();
+  const [address, setAddress] = useState('');
+  const [account, setAccount] = useState<AccountData | null>(null);
+  const [messages, setMessages] = useState<any>();
   const [isPrompting, setIsPrompting] = useState(false);
 
   // Functions
@@ -20,24 +27,16 @@ const App = () => {
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         const provider = new ethers.providers.Web3Provider(window.ethereum);
         const signer = provider.getSigner();
-        const address = await signer.getAddress();
-        if (!walletRe.test(address)) throw Error('Invalid Wallet Address');
-        setWalletAddress(address);
+        const signerAddress = await signer.getAddress();
+        if (!walletRe.test(signerAddress)) throw Error('Invalid Wallet Address');
+        setWalletAddress(signerAddress);
 
-        // Make request to create base account in backend
-        const result = await axios({
-          url: 'http://localhost:5000/auth/signup',
-          method: 'POST',
-          data: {
-            address
-          }
-        });
-
-        setOutput2(result?.data?.data);
+        await fetchAccount(signerAddress);
+        await fetchSignatureAddress(signerAddress);
       } catch (error) {
-        console.log('onCLickConnectWallet', { error });
+        console.log('onClickConnectWallet', { error });
         setWalletAddress(undefined);
-        setOutput2({});
+        setAccount(null);
       }
     }
   }
@@ -45,15 +44,18 @@ const App = () => {
   const onClickSignUpLogin = async () => {
     if (typeof window.ethereum !== "undefined") {
       try {
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
         const provider = new ethers.providers.Web3Provider(window.ethereum);
         const signer = provider.getSigner();
-        const address = await signer.getAddress();
-        console.log({ output1 });
+        const signerAddress = await signer.getAddress();
+        if (!walletRe.test(signerAddress)) throw Error('Invalid Wallet Address');
+        setWalletAddress(signerAddress);
+        console.log({ signerAddress });
         let result = await axios({
           url: 'http://localhost:5000/auth/nonce',
           method: 'POST',
           data: {
-            address
+            address: signerAddress
           }
         });
 
@@ -77,6 +79,8 @@ const App = () => {
         });
 
         console.log({ result: result?.data });
+        // if we succesfully ran this, we don't want to show the button again until there is reason
+        // so we leave isPrompting === true
       } catch (error) {
         console.log('onClickSignUpLogin', { error });
         setIsPrompting(false);
@@ -88,21 +92,21 @@ const App = () => {
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer = provider.getSigner();
-      const address = await signer.getAddress();
+      const signerAddress = await signer.getAddress();
 
       const result = await axios({
         url: 'http://localhost:5000/messages',
         method: 'GET',
         headers: {
-          'x-address': address
+          'x-address': signerAddress
         },
         withCredentials: true
       });
 
-      setOutput3(result?.data?.data)
+      setMessages(result?.data?.data)
     } catch (error) {
       console.log('onClickGetMessages', { error });
-      setOutput3('')
+      setMessages('')
     }
   }
 
@@ -146,7 +150,7 @@ const App = () => {
         withCredentials: true
       });
 
-      setOutput3(result?.data?.data)
+      setMessages(result?.data?.data)
       setMessage('');
     } catch (error) {
       console.log('onClickSubmit', { error });
@@ -169,8 +173,48 @@ const App = () => {
       })
 
       setWalletAddress(undefined);
+      // wipe page state as well
+      setAddress('');
+      setAccount(null);
+      setMessages(undefined);
+      setIsPrompting(false);
     } catch (error) {
       console.log('onClickLogOut', { error });
+    }
+  }
+
+  const fetchAccount = async (signerAddress: string) => {
+    try {
+      // Make request to create base account in backend
+      const result = await axios({
+        url: 'http://localhost:5000/auth/signup',
+        method: 'POST',
+        data: {
+          address: signerAddress
+        }
+      });
+      // const newAccount: AccountData = { ...result.data.data };
+      setAccount(result?.data?.data);
+    } catch (error) {
+      console.error('error fetching account', error);
+    }
+  }
+
+  const fetchSignatureAddress = async (signerAddress: string) => {
+    console.log('fetchSignatureAddress', signerAddress);
+    try {
+      const result = await axios({
+        url: 'http://localhost:5000/auth/verify',
+        method: 'POST',
+        headers: {
+          'x-address': signerAddress
+        },
+        withCredentials: true,
+      });
+      setAddress(result?.data?.data);
+    } catch (error) {
+      console.error('error fetching signature address', error);
+      throw error;
     }
   }
 
@@ -182,22 +226,18 @@ const App = () => {
         try {
           const provider = new ethers.providers.Web3Provider(window.ethereum);
           const signer = provider.getSigner();
-          const address = await signer.getAddress()
-          if (!walletRe.test(address)) throw Error('Invalid Wallet Address');
-          setWalletAddress(address);
+          const signerAddress = await signer.getAddress()
+          if (!walletRe.test(signerAddress)) throw Error('Invalid Wallet Address');
+          setWalletAddress(signerAddress);
 
-          const result = await axios({
-            url: 'http://localhost:5000/auth/verify',
-            method: 'POST',
-            headers: {
-              'x-address': address
-            },
-            withCredentials: true,
-          });
-          setOutput1(result?.data?.data);
+          await fetchSignatureAddress(signerAddress);
+
+          if (!account) {
+            await fetchAccount(signerAddress);
+          }
         } catch (error) {
           console.log('init', { error });
-          setOutput1('');
+          setAddress('');
           setWalletAddress(undefined);
         }
       }
@@ -210,17 +250,21 @@ const App = () => {
     <div className="App" style={{ padding: '20px' }}>
       <h1>Something DApp</h1>
       {walletAddress ? <button onClick={onClickLogOut}>Logout</button> : null}
-      <p><small>Wallet Address</small></p>
+      <h2>Wallet Address</h2>
+      <p><small>What the DApp has gotten directly from your connected wallet</small></p>
       <pre style={{ padding: '20px', background: '#efefef' }}><code>{JSON.stringify(walletAddress || 'none')}</code></pre>
-      <p><small>Init Verify</small></p>
-      <pre style={{ padding: '20px', background: '#efefef' }}><code>{JSON.stringify(output1, null, ' ')}</code></pre>
+      <h2>Signature Address</h2>
+      <p><small>The address extracted from your digital signature (as we know the plaintext you signed)</small></p>
+      <pre style={{ padding: '20px', background: '#efefef' }}><code>{JSON.stringify(address, null, ' ')}</code></pre>
       {!walletAddress ? <button onClick={onClickConnectWallet}>Connect Wallet</button> : <div>
-        {!isPrompting ? <button onClick={onClickSignUpLogin}>Sign Up / login</button> : null}
-        <p><small>Init Signup</small></p>
-        <pre style={{ padding: '20px', background: '#efefef' }}><code>{JSON.stringify(output2, null, ' ')}</code></pre>
-        <p><small>Messages</small></p>
+        {!isPrompting ? <button onClick={onClickSignUpLogin}>Signature Login</button> : null}
+        <h2>Account</h2>
+        <p><small>The account associated with your address</small></p>
+        <pre style={{ padding: '20px', background: '#efefef' }}><code>{JSON.stringify(account, null, ' ')}</code></pre>
+        <h2>Messages</h2>
+        <p><small>The messages. Reading and writing are both restricted based upon having your wallet auth.</small></p>
         <button onClick={onClickGetMessages}>Get Messages</button>
-        <pre style={{ padding: '20px', background: '#efefef' }}><code>{JSON.stringify(output3, null, ' ')}</code></pre>
+        <pre style={{ padding: '20px', background: '#efefef' }}><code>{JSON.stringify(messages, null, ' ')}</code></pre>
         <p><textarea placeholder="New message" value={message} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)} /></p>
         <button onClick={onClickSubmit}>Submit</button>
       </div>}

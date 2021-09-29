@@ -33,7 +33,7 @@ const nonceMiddleware = (req: any, res: any, next: any) => {
 };
 
 app
-  .get("/auth/logout", nonceMiddleware, (req, res) => {
+  .get("/auth/logout", (req, res) => {
     return res.clearCookie("nonce").json({ data: true });
   })
   .post("/auth/signup", (req, res) => {
