@@ -1,4 +1,1 @@
-{
-  "messages": [],
-  "accounts": []
-}
+{"messages":[{"id":"8fc2c1a3-36be-4449-a889-3421e38c6cf3","ownerId":"2c1f2046-00bf-416b-a6f9-2e8b8861c580","message":"adasdad"}],"accounts":[{"id":"2c1f2046-00bf-416b-a6f9-2e8b8861c580","address":"0xb7AE5De3e843a26Ca764605f6Bec916701f88556","nonce":"b4e8b287-0963-463a-923e-a888f09573b5","issued":"2021-09-29T03:23:54.125Z"}]}

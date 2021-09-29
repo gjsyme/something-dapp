@@ -45,12 +45,15 @@ const App = () => {
   const onClickSignUpLogin = async () => {
     if (typeof window.ethereum !== "undefined") {
       try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const address = await signer.getAddress();
         console.log({ output1 });
         let result = await axios({
           url: 'http://localhost:5000/auth/nonce',
           method: 'POST',
           data: {
-            address: output1
+            address
           }
         });
 
@@ -59,8 +62,7 @@ const App = () => {
 
         setIsPrompting(true);
 
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
+
         const signed = await signer.signMessage(`Login\n\n${nonce}`);
         console.log({ signed });
 

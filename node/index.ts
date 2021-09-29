@@ -123,6 +123,7 @@ app
   .get("/messages", nonceMiddleware, (req, res) => {
     console.log(req.cookies);
     const user = (req as any).user;
+    console.log({ user });
     const json = JSON.parse(fs.readFileSync(DB_FILE).toString());
     const find = json.messages.filter((i: any) => i.ownerId === user.id);
 
