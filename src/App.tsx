@@ -183,6 +183,15 @@ const App = () => {
     }
   }
 
+  const getCSRFToken = async () => {
+    const response = await axios({
+      url: 'http://localhost:5000/getCSRFToken',
+      method: 'GET'
+    });
+    console.log('csrf', response.data.CSRFToken);
+    axios.defaults.headers.post['X-CSRF-Token'] = response.data.CSRFToken;
+  }
+
   const fetchAccount = async (signerAddress: string) => {
     try {
       // Make request to create base account in backend
@@ -222,6 +231,7 @@ const App = () => {
   useEffect(() => {
     // Onload always retrieve the wallet address
     const init = async () => {
+      await getCSRFToken();
       if (typeof window.ethereum !== "undefined") {
         try {
           const provider = new ethers.providers.Web3Provider(window.ethereum);

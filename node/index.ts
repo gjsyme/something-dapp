@@ -4,6 +4,7 @@ import { v4 as uuid, validate } from "uuid";
 import fs from "fs";
 import { ethers } from "ethers";
 import cookieParser from "cookie-parser";
+import csurf from 'csurf';
 
 const PORT = 5000;
 const app = express();
@@ -18,7 +19,10 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+app.use(csurf({ cookie: true }));
+
 const nonceMiddleware = (req: any, res: any, next: any) => {
+  console.log('nonce check', req.cookies);
   if (!req.cookies.nonce || !req.headers["x-address"])
     return res.status(401).json({ error: "Invalid or expired nonce." });
   const json = JSON.parse(fs.readFileSync(DB_FILE).toString());
@@ -32,7 +36,19 @@ const nonceMiddleware = (req: any, res: any, next: any) => {
   next();
 };
 
+// csrf error handler (printer)
+app.use((err: any, req: any, res: any, next: any) => {
+  if (err.code !== 'EBADCSRFTOKEN') return next(err);
+
+  console.log('csrf error on request headers', req.headers['x-csrf-token']);
+  res.status(403);
+  res.send('CSRF Error');
+})
+
 app
+  .get("/getCSRFToken", (req, res) => {
+    res.json({ CSRFToken: req.csrfToken() })
+  })
   .get("/auth/logout", (req, res) => {
     return res.clearCookie("nonce").json({ data: true });
   })
@@ -121,17 +137,13 @@ app
     return res.json({ data: find.address });
   })
   .get("/messages", nonceMiddleware, (req, res) => {
-    console.log(req.cookies);
     const user = (req as any).user;
-    console.log({ user });
     const json = JSON.parse(fs.readFileSync(DB_FILE).toString());
     const find = json.messages.filter((i: any) => i.ownerId === user.id);
 
     return res.json({ data: find });
   })
   .get("/messages/nonce", nonceMiddleware, (req, res) => {
-    // console.log(req.cookies);
-    // const user = (req as any).user;
     let u = null;
     try {
       u = uuid();
@@ -155,9 +167,7 @@ app
     const user = (req as any).user;
     const address = req.headers["x-address"];
     const { message, nonce, signed } = req.body;
-    console.log({ message });
-    console.log({ nonce });
-    console.log({ signed });
+    
     const json = JSON.parse(fs.readFileSync(DB_FILE).toString());
     const find = json.messages.findIndex(
       (i: any) => i.nonce === nonce && i.ownerId === null && i.message === null
@@ -168,8 +178,6 @@ app
       `${message}\n\n${nonce}`,
       signed
     );
-
-    console.log({ verifyAddress });
 
     if (address !== verifyAddress)
       return res.status(401).send({ error: "Invalid address signed." });
